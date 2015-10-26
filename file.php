@@ -135,9 +135,7 @@ include('stepbar.php');
 <div class="clear"></div>
 </div>
 
-<div class="clear">
-	<div id="status-info" class="section"> Waiting to read status... </div>
-	
+<div class="clear section">
 	<form id="uploadForm" action="processing.php" method="post">
 		<!-- On limite le fichier à 1000Ko -->
 		<input type="hidden" name="MAX_FILE_SIZE" value="1000000" />
@@ -148,18 +146,27 @@ include('stepbar.php');
 			<input name="upfile" id="upfile" type="file" class="InputBox" />
 			<input type="submit" id="btnSubmit" value="Submit" class="btnSubmit" />
 		</div>
-		
-		<label>2) Wait for processing to finish</label>
-		<div id="progress-div" class="section">
-			<div id="upload-progress-bar"></div>
-			<div id="process-progress-bar"></div>
-		</div>
-		<!-- <div id="targetLayer" class="section"></div> -->
 	</form>
 
-	<label>3) Finish to GeoJson </label>
+	<div class="progress-div section">
+	  <div id="upload-progress-bar"></div>
+	</div>
+</div>
+
+<div class="clear section">
+	<div class="label">2) Convert addresses</div>
+	<tt>leave this page open untill the end of the process</tt>
+	<div id="status-info" class="section">Fetching current status... </div>
+
+	<div class="progress-div section">
+	  <div id="process-progress-bar"></div>
+	</div>
+</div>
+
+<div class="clear section">
+	<div class="label">3) Get the map</div>
+	<tt>file will be converted to GeoJson</tt>
 	<button id="button-process" type="button" onclick="CsvToGeoJson()" > Finalize CSV to GeoJSON </button>
-	
 </div>
 
 </body>

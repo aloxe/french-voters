@@ -8,6 +8,8 @@ body {
 
 .steps {
     border: 1px dotted white;
+    position: relative;
+    text-align: center;
 }
 
 .section {
@@ -18,24 +20,65 @@ body {
 
 /* upload file with progress bar */
 
-#uploadForm {border-top:#F0F0F0 2px solid;background:#FAF8F8;padding:10px;}
+#uploadForm {
+    margin:0;
+    padding:0;
+}
 
-#uploadForm label {margin:2px; font-size:1em; font-weight:bold;}
+#uploadForm label, .label {
+    margin:2px; 
+    font-size:1em; 
+    font-weight:bold;
+}
 
-.InputBox{padding:5px; border:#F0F0F0 1px solid; border-radius:4px; background-color:#FFF;}
+#uploadForm div.section {
+    border:#F0F0F0 solid 1px;
+    background:#FAF8F8;
+    padding:1em;
+    margin-top: 0.5em;
+}
 
-#upload-progress-bar, #process-progress-bar 
-{background-color: #12CC1A;height:20px;color: #FFFFFF;width:0%;-webkit-transition: width .3s;-moz-transition: width .3s;transition: width .3s;}
-.btnSubmit{background-color:#09f;border:0;padding:10px 40px;color:#FFF;border:#F0F0F0 1px solid; border-radius:4px;}
+.InputBox{
+    padding:5px; 
+    border:#F0F0F0 1px solid; 
+    border-radius:4px; 
+    background-color:#FFF;
+}
 
-#progress-div {border:#0FA015 1px solid;padding: 5px 0px;margin:30px 0px;border-radius:4px;text-align:center;}
+#upload-progress-bar, 
+#process-progress-bar {
+    background-color: #12CC1A;
+    height:20px;
+    color: #FFFFFF;
+    width:0%;
+    -webkit-transition: width .3s;
+    -moz-transition: width .3s;
+    transition: width .3s;
+}
 
-#targetLayer{width:100%;}
+.btnSubmit{
+    background-color:#09f;
+    padding:10px 40px;
+    color:#FFF;
+    border:#F0F0F0 1px solid; 
+    border-radius:4px;
+}
 
-#status-info 
-{
-	border:#888 1px solid;
-	padding: 5px 0px;
-	margin:30px 0px;
-	border-radius:4px;
+.progress-div {
+    border:#0FA015 1px solid;
+    padding: 5px 0px;
+    margin:30px 0px;
+    border-radius:4px;
+    text-align:center;
+}
+
+#targetLayer {
+    width:100%;
+}
+
+#status-info {
+    border:#0FA015 1px solid; 
+    padding: 5px;
+    margin: 10px 0px;
+    border-radius:4px;
 }
