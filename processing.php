@@ -280,7 +280,7 @@ class Processing
 		}
 		
 		Logger::Log( "Writing GeoJson file" );
-		$fp = fopen('data.gjson', 'w');
+		$fp = fopen('data/geojson/data.gjson', 'w');
 		fwrite($fp, json_encode( $gjson,  JSON_PRETTY_PRINT ));
 		fclose($fp);
 		
