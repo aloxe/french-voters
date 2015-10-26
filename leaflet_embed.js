@@ -148,7 +148,7 @@ function addPruneClusterMarkers()
 	}
 	*/
 	
-	$.getJSON('data.gjson', function(response){
+	$.getJSON('data/data.gjson', function(response){
 		
 		for ( var catIndex = 0; catIndex < response.geometries.length; ++catIndex )
 		{

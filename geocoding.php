@@ -11,7 +11,7 @@ error_reporting(E_ALL);
 	// http://maps.google.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA&sensor=false
 */
 
-require_once('php-opencage-geocode-modified/OpenCage.Geocoder.php');
+require_once('lib/php-opencage-geocode-modified/OpenCage.Geocoder.php');
 require_once('log.php');
 
 class GeocodingResult

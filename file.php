@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <title>French voters (TEST)</title>
 
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="stepbar.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/stepbar.css">
 
-<script src="jquery/jquery-1.11.3.min.js" type="text/javascript"></script>
-<script src="jquery/jquery.form.js" type="text/javascript"></script>
+<script src="lib/jquery/jquery-1.11.3.min.js" type="text/javascript"></script>
+<script src="lib/jquery/jquery.form.js" type="text/javascript"></script>
 
 <script type="text/javascript">
 
