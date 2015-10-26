@@ -1,0 +1,9 @@
+<IfModule mod_expires.c>
+# Enable expirations
+ExpiresActive On 
+# Default directive - expire all files (especially javascript) right away, so they are not read from cache and I can update them.
+ExpiresDefault "access plus 0 seconds"
+</IfModule>
+php_flag  log_errors on
+php_flag display_errors on
+php_value error_log  ./phpe.log
