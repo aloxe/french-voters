@@ -63,7 +63,10 @@ class GeoCoding
 		
 		$ret = new GeocodingResult();
 		
-		if ( isset( $result ) && $result[ 'status' ][ 'message' ] == "OK" &&
+		if ( !isset( $result ) ) {
+			Logger::Log( "Address: " . $locationName . " was not resolved: No result recieved" );		  
+		}
+		else if ( isset( $result ) && $result[ 'status' ][ 'message' ] == "OK" &&
 				count( $result[ 'results' ] ) > 0 )
 		{
 			$ret->valid = true;
@@ -76,7 +79,8 @@ class GeoCoding
 		else 
 		{
 			$ret->valid = false;
-			Logger::Log( "Address: " . $locationName . " was not resolved." );
+			$message = "«". $result[ 'status' ][ 'code' ] . " " . $result[ 'status' ][ 'message' ]. "»";
+			Logger::Log( "Address: " . $locationName . " was not resolved: " . $message . ".");
 		}
 		
 		Logger::Log( print_r ( $result, true ) );
