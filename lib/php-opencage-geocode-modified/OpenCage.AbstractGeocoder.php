@@ -3,7 +3,8 @@
 namespace OpenCage {
 	abstract class AbstractGeocoder {
 		const TIMEOUT = 10;
-		const URL = 'https://api.opencagedata.com/geocode/v1/json/?';
+		// On current server I can't use https
+		const URL = 'http://api.opencagedata.com/geocode/v1/json/?';
 
 		protected $key;
 		protected $timeout;

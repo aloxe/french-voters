@@ -83,7 +83,7 @@ class GeoCoding
 			Logger::Log( "Address: " . $locationName . " was not resolved: " . $message . ".");
 		}
 		
-		Logger::Log( print_r ( $result, true ) );
+		// Logger::Log( print_r ( $result, true ) );
 		return $ret;
 	}
 

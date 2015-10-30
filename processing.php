@@ -17,6 +17,7 @@ class ProcessingResult
 	public $LinesConversionFailed;
 }
 
+// class contains code for reading CSV, geocoding the addresses, storing temporary CSV and conversion to geoJson
 class Processing
 {
 	// === Internal - handling of other process may be running ===
@@ -29,12 +30,15 @@ class Processing
 	
 	const ItemsToProcessInOneRun = 5;
 	const DataFolderName = "data";
+	const UploadDataFolderName = "data/upload";
 	
+	// returns path of full input file name
 	function InputDataFileName( $id )
 	{
-		return self::DataFolderName . "/" . $id . ".csv";
+		return self::UploadDataFolderName . "/" . $id . ".csv";
 	}
 	
+	// returns full path of status file name
 	function StatusFileName( $id )
 	{
 		return self::DataFolderName . "/" . $id . ".status";
@@ -80,22 +84,22 @@ class Processing
 			$toRead = $maxRows;
 		Logger::Log( "Parsing started, from line ". $startRow ." to line ". ($startRow + $toRead) );
 		
+		// open output files
 		$errorCsv = fopen( self::ErrorsDataFileName( $id ), 'a+');
 		$processedCsv = fopen( self::ProcessedDataFileName( $id ), 'a+');
 		
-		// $status->LinesConverted = 0;
-		// $status->LinesConversionFailed = 0;
-		
+		// read all rows of input file
 		for ( $i = 0; $i < $toRead; ++$i )
 		{
 			$rowNumber = $startRow + $i;
 			
 			$items = str_getcsv( $f[ $rowNumber ] );
 			
+			// geocode the address, which is in 4th cell
 			$geocoded = GeoCoding::GeocodeLocation( $items[ 3 ] );
 			Logger::Log( "Parsing line ". $rowNumber .", result is ". $geocoded->valid );
 			
-			// add row number to start
+			// add row number to start, to the first cell of the row
 			array_unshift( $items, $rowNumber );
 			
 			if ( $geocoded->valid )
@@ -127,6 +131,8 @@ class Processing
 	
 	// === used from outside ===
 	
+	// returns information if there is already some process in progress
+	// returns null if there is none
 	function GetRunningStatus()
 	{
 		// look if there are any status files
@@ -138,6 +144,7 @@ class Processing
 		sort( $files );
 		$filename = end( $files );
 		
+		// read status and return
 		$s = file_get_contents( $filename );
 		$status = unserialize( $s );
 		return $status;

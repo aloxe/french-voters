@@ -14,13 +14,24 @@
 
 var processingStatus;
 
+// This code is called when page is initialized.
 $(document).ready(function() { 
 	
+	// initialize buttons and elements on page in state we want it to
 	$('#button-process').hide();
 	$("#upload-progress-bar").width('0%');
 	$("#progress-progress-bar").width('0%');
+	
+	// setup 3 second interval in which it calls CheckStatus repeadetly. 
+	// This will cause page to update about current status
 	setInterval( CheckStatus, 3000 );
 	
+	// also check for status right away.
+	CheckStatus();
+	
+	// scripted way to handle the progress of uploading of file.
+	// This code handles only displaying of the progressbar.
+	// After file is uploaded the <form> defines which script should be called
 	 $('#uploadForm').submit(function(e) {	
 		if($('#upfile').val()) {
 			e.preventDefault();
@@ -45,9 +56,10 @@ $(document).ready(function() {
 
 }); 
 
+// get me information about current status on server:
 function CheckStatus()
 {
-	// get me information about current status on server:
+	// send asynchronous (not blocking user) request for status
 	$.ajax({
 		method: "POST",
 		url: "processing.php",
@@ -61,6 +73,10 @@ function CheckStatus()
 			
 			if ( processingStatus.Status == "STARTED" || processingStatus.Status == "PROCESSED" )
 			{
+				// If process status says that there is a file that should be processed
+				// invoke the processing. This is done repeadetly because script can always do only 
+				// part of the job.
+				// This call is asynchronous again to avoid blocking of user.
 				$.ajax({
 					method: "POST",
 					url: "processing.php",
@@ -70,27 +86,13 @@ function CheckStatus()
 		});
 }
 
-/*
-function FileUploaded( fileName )
-{
-	$.ajax({
-		method: "POST",
-		url: "processing.php",
-		data: { action: "INIT", file: fileName },
-		dataType: "json",
-	})
-		.done( 
-			function( resJson ) {
-				processingStatus = $.parseJSON( resJson );
-				UpdateStatusInfo();
-			});
-}
-*/
-
 function UpdateStatusInfo()
 {
 	if ( processingStatus == null )
+	{
+		$("#status-info").html(' Status: no information');
 		return;
+	}
 	
 	$("#status-info").html(
 	' Status: ' + processingStatus.Status + ' Id: ' + processingStatus.ProcessingId +
@@ -98,11 +100,13 @@ function UpdateStatusInfo()
 	'<br/> Converted fine: ' + processingStatus.LinesConverted +
 	'<br/> Conversion failed for: ' + processingStatus.LinesConversionFailed );
 	
+	// show the button only after CSV => GEOCSV is finished
 	if ( processingStatus.Status == "FINISHEDGEOCSV" || processingStatus.Status == "FINISHEDGEOJSON" )
 	{
 		$('#button-process').show(); 
 	}
-
+	
+	// update progress bar with information how far is the CSV => GEOCSV
 	if ( processingStatus.Status != "STARTED" )
 	{
 		percentComplete = processingStatus.LastProcessedLine * 100 / processingStatus.FileLinesCount;
@@ -111,6 +115,9 @@ function UpdateStatusInfo()
 	}
 }
 
+// Converts GeoCSV (CSV with coordinates) to GeoJSON (which is displayable by map)
+// This call is quick, but we call it async anyhow.
+// We check status repeadetly so we will find out there if it was processed OK
 function CsvToGeoJson()
 {
 	$.ajax({
