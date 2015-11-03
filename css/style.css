@@ -46,7 +46,10 @@ body {
 }
 
 #upload-progress-bar, 
-#process-progress-bar {
+#process-progress-bar,
+#fix-csv-upload-progress-bar,
+#fix-csv-process-progress-bar
+{
     background-color: #12CC1A;
     height:20px;
     color: #FFFFFF;

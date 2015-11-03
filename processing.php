@@ -11,10 +11,13 @@ class ProcessingResult
 	public $ProcessingId;
 	public $Status;
 	
-	public $LastProcessedLine;
+	public $NextLineToProcess;
 	public $FileLinesCount;
 	public $LinesConverted;
 	public $LinesConversionFailed;
+	
+	public $ReevCsvNextLineToProcess;
+	public $ReevCsvLinesCount;
 }
 
 // class contains code for reading CSV, geocoding the addresses, storing temporary CSV and conversion to geoJson
@@ -27,6 +30,8 @@ class Processing
 	const StatusProcessed = "PROCESSED"; // worked on batch, batch finished
 	const StatusFinishedGeoCsv = "FINISHEDGEOCSV"; // finished - all data processed to state 1
 	const StatusFinishedGeoJson = "FINISHEDGEOJSON"; // finished - all data processed to state 2
+	const StatusProcessingErrorCsv = "PROCESSING-ERROR-CSV"; // working on error CSV again
+	const StatusProcessedErrorCsv =  "PROCESSED-ERROR-CSV"; // working on error CSV again
 	
 	const ItemsToProcessInOneRun = 5;
 	const DataFolderName = "data";
@@ -54,6 +59,11 @@ class Processing
 		return self::DataFolderName . "/" . $id . "_errors.csv";
 	}
 	
+	function ReevaluatingErrorsDataFileName( $id )
+	{
+		return self::DataFolderName . "/" . $id . "_err_trying_again.csv";
+	}
+	
 	// === Internal - transformation processing ====
 	
 	function ReadStatus( $id )
@@ -78,7 +88,7 @@ class Processing
 		$f = file( self::InputDataFileName( $id ) );
 		
 		// read either X rows, or number of rows left, whichever is smaller/closer
-		$startRow = $status->LastProcessedLine + 1;
+		$startRow = $status->NextLineToProcess;
 		$toRead = $status->FileLinesCount - $startRow;
 		if ( $maxRows < $toRead )
 			$toRead = $maxRows;
@@ -97,7 +107,7 @@ class Processing
 			
 			// geocode the address, which is in 4th cell
 			$geocoded = GeoCoding::GeocodeLocation( $items[ 3 ] );
-			Logger::Log( "Parsing line ". $rowNumber .", result is ". $geocoded->valid );
+			Logger::Log( "Parsing line ". $rowNumber .", result: ". ($geocoded->valid ? "OK" : "Failed") );
 			
 			// add row number to start, to the first cell of the row
 			array_unshift( $items, $rowNumber );
@@ -120,7 +130,7 @@ class Processing
 				++$status->LinesConversionFailed;
 			}
 			
-			$status->LastProcessedLine = $rowNumber;
+			$status->NextLineToProcess = $rowNumber + 1;
 		}
 		
 		fclose( $errorCsv );
@@ -156,9 +166,11 @@ class Processing
 		$dt = new DateTime();
 		$status->ProcessingId = $dt->format('Y-m-d_G-i-s');
 		$status->Status = self::StatusStarted;
-		$status->LastProcessedLine = 0;
+		$status->NextLineToProcess = 0;
 		$status->LinesConverted = 0;
 		$status->LinesConversionFailed = 0;
+		$status->ReevCsvNextLineToProcess = 0;
+		$status->ReevCsvLinesCount = 0;
 	
 		$newfilename = self::InputDataFileName( $status->ProcessingId );
 		Logger::Log( "Renaming file: ". $filename ." to file: ". $newfilename );
@@ -184,7 +196,7 @@ class Processing
 			return $status;
 		}
 		
-		if ( $status->LastProcessedLine < $status->FileLinesCount - 1 )
+		if ( $status->NextLineToProcess < $status->FileLinesCount )
 		{
 			// write status while working
 			$status->Status = self::StatusProcessing;
@@ -194,7 +206,7 @@ class Processing
 			$status = self::ParseCsvLines( $status, self::ItemsToProcessInOneRun );
 		}
 		
-		$status->Status = ( $status->LastProcessedLine < $status->FileLinesCount - 1 ) ?
+		$status->Status = ( $status->NextLineToProcess < $status->FileLinesCount ) ?
 			self::StatusProcessed : self::StatusFinishedGeoCsv;
 		
 		self::WriteStatus( $status );
@@ -296,6 +308,144 @@ class Processing
 		
 		return $status;
 	}
+	
+	// starts up the re-evaluation process - handles uploaded file and initializes the progress
+	function InitFixCsv( $processingId, $filename )
+	{
+		$status = self::ReadStatus( $processingId );
+		if ( $status->Status != self::StatusFinishedGeoCsv && $status->Status != self::StatusFinishedGeoJson )
+		{
+		// Function won't do anything if it is not in Finished1 already
+			Logger::Log( "Can't move to phase FixCsv as it is not in phase FinishedGeoCSV" );
+			return $status;
+		}
+		
+		$status->Status = self::StatusProcessedErrorCsv;
+		$status->ReevCsvNextLineToProcess = 0;
+		$status->ReevCsvLinesCount = 0;
+		
+		$newfilename = self::ReevaluatingErrorsDataFileName( $processingId );
+		Logger::Log( "Renaming file: ". $filename ." to file: ". $newfilename );
+		rename( $filename, $newfilename );
+		
+		$f = file( $newfilename );
+		$status->ReevCsvLinesCount = count( $f );
+		
+		Logger::Log( "InitFixCsv on file ". $filename .", items count ". $status->ReevCsvLinesCount ." id ". $status->ProcessingId );
+		self::WriteStatus( $status );
+		
+		// delete error file, because now it will be filled with next possible errors
+		if (! rename( self::ErrorsDataFileName( $processingId ), self::ErrorsDataFileName( $processingId ) ."-old" ) )
+		{
+			Logger::Log( "InitFixCsv error renaming errors-csv file to old '". self::ErrorsDataFileName( $processingId ) ."'!" );
+		}
+		
+		return $status;
+	}
+	
+	function GetIndexesFromCsvLines( $lines )
+	{
+		$indexes = array();
+		$lines_count = count ( $lines );
+		for ( $i = 0; $i < $lines_count; ++$i )
+		{
+			$csvLineItems = str_getcsv( $lines[ $i ] );
+			$indexes[] = $csvLineItems[ 0 ];
+		}
+		
+		return $indexes;
+	}
+	
+	// Takes few lines from 'csv with fixed lines' and processes them. It starts to create 
+	function ProcessingErrorCsv( $processingId )
+	{
+		$status = self::ReadStatus( $processingId );
+		if ( $status->Status != self::StatusProcessedErrorCsv )
+		{
+			Logger::Log( "ProcessingErrorCsv: wrong state :" . $status->Status );
+			return $status;
+		}
+		
+		if ( $status->ReevCsvNextLineToProcess >= $status->ReevCsvLinesCount )
+		{
+			$status->Status = self::StatusFinishedGeoCsv;
+			self::WriteStatus( $status );
+			return $status;
+		}
+		
+		$status->Status = self::StatusProcessingErrorCsv;
+		self::WriteStatus( $status );
+		
+		$id = $processingId;
+		$maxRows = 2;
+
+		$startRow = $status->ReevCsvNextLineToProcess;
+		$toRead = $status->ReevCsvLinesCount - $startRow;
+		if ( $maxRows < $toRead )
+			$toRead = $maxRows;
+		Logger::Log( "ProcessingErrorCsv started, from line ". $startRow ." to line ". ($startRow + $toRead) );
+		
+		// Find indexes in the files. This is important as it will show us which items are already processed
+		// and should not be added again (because this can happen, human can make mistake :)
+		$finished = file( self::ProcessedDataFileName( $id ) );
+		$finishedIndexes = self::GetIndexesFromCsvLines( $finished );
+		fclose( $finished );
+		
+		$toReevaluate = file( self::ReevaluatingErrorsDataFileName( $id ) );
+		$toReevaluateIndexes = self::GetIndexesFromCsvLines( $toReevaluate );
+		
+		$errorCsv = fopen( self::ErrorsDataFileName( $id ), 'a+');
+		$processedCsv = fopen( self::ProcessedDataFileName( $id ), 'a+');
+		
+		$endRow = $startRow + $toRead;
+		
+		for ( $rowNumber = $startRow; $rowNumber < $endRow; ++$rowNumber )
+		{
+			$status->ReevCsvNextLineToProcess = $rowNumber + 1;
+			
+			$toReevaluateIndex = $toReevaluateIndexes[ $rowNumber ];
+			if ( in_array( $toReevaluateIndex, $finishedIndexes ) )
+			{
+				// skip this item, it is already processed, instead process another.
+				Logger::Log( "Skipping line ". $rowNumber .", because index ". $toReevaluateIndex ." is already in output." );
+				continue;
+			}
+			
+			$csvLineItems = str_getcsv( $toReevaluate[ $rowNumber ] );
+			$geocoded = GeoCoding::GeocodeLocation( $csvLineItems[ 4 ] );
+			Logger::Log( "Parsing line ". $rowNumber .", result: ". ($geocoded->valid ? "OK" : "Failed") );
+			
+			if ( $geocoded->valid )
+			{
+				// add coordinates to end
+				$csvLineItems[] = $geocoded->lat;
+				$csvLineItems[] = $geocoded->lon;
+				
+				// store items to 'good' csv
+				fputcsv( $processedCsv, $csvLineItems );
+				
+				// increase number of correct count, decrease it from error count where it was already
+				++$status->LinesConverted;
+				--$status->LinesConversionFailed;
+			}
+			else
+			{
+				// store items to 'bad' csv
+				fputcsv( $errorCsv, $csvLineItems );
+				
+				// no need to increase error count, it is already written there
+			}
+		}
+		
+		fclose( $toReevaluate );
+		fclose( $errorCsv );
+		fclose( $processedCsv );
+		
+		$status->Status = self::StatusProcessedErrorCsv;
+		self::WriteStatus( $status );
+		
+		return $status;
+	}
 }
 
 /*
@@ -359,6 +509,22 @@ class Processing
 				Logger::Log( "id not specified for PROCESSGEOJSON" );
 			else
 				$result = $p->ProcessingGeoCsvToGeoJson( $id );
+		}
+		
+		if ( $action == "INITFIXCSV" )
+		{
+			if ( $id == null )
+				Logger::Log( "id not specified for INITFIXCSV" );
+			else
+				$result = $p->InitFixCsv( $id, $fileName );
+		}
+		
+		if ( $action == "PROCESS-FIX-CSV" )
+		{
+			if ( $id == null )
+				Logger::Log( "id not specified for PROCESS-FIX-CSV" );
+			else
+				$result = $p->ProcessingErrorCsv( $id );
 		}
 		
 		echo json_encode( $result );

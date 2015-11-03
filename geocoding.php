@@ -59,6 +59,8 @@ class GeoCoding
 			static::$geocoder = new OpenCage\Geocoder( self::Key, self::Options);
 		}
 		
+		Logger::Log( "Resolving : " . $locationName );
+
 		$result = static::$geocoder->geocode($locationName);
 		
 		$ret = new GeocodingResult();

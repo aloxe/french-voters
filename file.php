@@ -18,9 +18,11 @@ var processingStatus;
 $(document).ready(function() { 
 	
 	// initialize buttons and elements on page in state we want it to
-	$('#button-process').hide();
+	$('#button-CsvToGeoJson').hide();
 	$("#upload-progress-bar").width('0%');
 	$("#progress-progress-bar").width('0%');
+	$("#fix-csv-upload-progress-bar").width('0%');
+	$("#fix-csv-process-progress-bar").width('0%');
 	
 	// setup 3 second interval in which it calls CheckStatus repeadetly. 
 	// This will cause page to update about current status
@@ -35,7 +37,6 @@ $(document).ready(function() {
 	 $('#uploadForm').submit(function(e) {	
 		if($('#upfile').val()) {
 			e.preventDefault();
-			$('#loader-icon').show();
 			$(this).ajaxSubmit({ 
 				target:   '#targetLayer', 
 				beforeSubmit: function() {
@@ -46,7 +47,6 @@ $(document).ready(function() {
 					$("#upload-progress-bar").html('<div id="progress-status">' + percentComplete +' %</div>')
 				},
 				success:function (){
-					// $('#loader-icon').hide();
 				},
 				resetForm: true 
 			}); 
@@ -54,12 +54,32 @@ $(document).ready(function() {
 		}
 	});
 
+	 $('#fix-csv-uploadForm').submit(function(e) {	
+		if($('#fix-csv-upfile').val()) {
+			e.preventDefault();
+			$(this).ajaxSubmit({ 
+				target:   '#targetLayer', 
+				beforeSubmit: function() {
+				  $("#fix-csv-upload-progress-bar").width('0%');
+				},
+				uploadProgress: function (event, position, total, percentComplete){	
+					$("#fix-csv-upload-progress-bar").width(percentComplete + '%');
+					$("#fix-csv-upload-progress-bar").html('<div id="progress-status">' + percentComplete +' %</div>')
+				},
+				success:function (){
+				},
+				resetForm: true 
+			}); 
+			return false; 
+		}
+	});
 }); 
 
 // get me information about current status on server:
 function CheckStatus()
 {
 	// send asynchronous (not blocking user) request for status
+	// get me information about current status on server:
 	$.ajax({
 		method: "POST",
 		url: "processing.php",
@@ -83,6 +103,15 @@ function CheckStatus()
 					data: { action: "PROCESS", id : processingStatus.ProcessingId },
 				})
 			}
+			
+			if ( processingStatus.Status == "PROCESSED-ERROR-CSV")
+			{
+				$.ajax({
+					method: "POST",
+					url: "processing.php",
+					data: { action: "PROCESS-FIX-CSV", id : processingStatus.ProcessingId },
+				})
+			}
 		});
 }
 
@@ -94,24 +123,44 @@ function UpdateStatusInfo()
 		return;
 	}
 	
+	var processedLine = processingStatus.NextLineToProcess;
 	$("#status-info").html(
 	' Status: ' + processingStatus.Status + ' Id: ' + processingStatus.ProcessingId +
-	'<br/> Items: ' + processingStatus.LastProcessedLine + ' / ' + processingStatus.FileLinesCount +
+	'<br/> Items: ' + processedLine + ' / ' + processingStatus.FileLinesCount +
 	'<br/> Converted fine: ' + processingStatus.LinesConverted +
 	'<br/> Conversion failed for: ' + processingStatus.LinesConversionFailed );
 	
-	// show the button only after CSV => GEOCSV is finished
-	if ( processingStatus.Status == "FINISHEDGEOCSV" || processingStatus.Status == "FINISHEDGEOJSON" )
-	{
-		$('#button-process').show(); 
-	}
-	
-	// update progress bar with information how far is the CSV => GEOCSV
 	if ( processingStatus.Status != "STARTED" )
 	{
-		percentComplete = processingStatus.LastProcessedLine * 100 / processingStatus.FileLinesCount;
+		percentComplete = processedLine * 100 / processingStatus.FileLinesCount;
 		$("#process-progress-bar").width(percentComplete + '%');
-		$("#process-progress-bar").html('<div id="progress-status" >' + processingStatus.LastProcessedLine + '/' + processingStatus.FileLinesCount +'</div>')
+		$("#process-progress-bar").html('<div id="progress-status" >' + processedLine + '/' + processingStatus.FileLinesCount +'</div>')
+	}
+	
+	if ( processingStatus.Status == "FINISHEDGEOCSV" || processingStatus.Status == "FINISHEDGEOJSON" || 
+		processingStatus.Status == "PROCESSING-ERROR-CSV" || processingStatus.Status == "PROCESSED-ERROR-CSV" )
+	{
+		$('#button-CsvToGeoJson').show(); 
+		
+		if ( processingStatus.LinesConversionFailed > 0 || 
+			processingStatus.Status == "PROCESSING-ERROR-CSV" || processingStatus.Status == "PROCESSED-ERROR-CSV" )
+		{
+			// display way to fix the CSV
+			document.getElementById('fix-csv').style.display = 'block';
+			
+			var csvFixInfo = 'Failed ' + processingStatus.LinesConversionFailed + ' from ' + processingStatus.FileLinesCount +
+			' lines. <a href="data/' + processingStatus.ProcessingId + '_errors.csv">Records to fix</a>' +
+			', <a href="data/' + processingStatus.ProcessingId + '_processed.csv">Correctly processed records</a>.';
+			
+			document.getElementById('fix-csv-info').innerHTML = csvFixInfo;
+			document.getElementById('fix-csv-process-id').setAttribute("value", processingStatus.ProcessingId);
+			
+			processedLine = processingStatus.ReevCsvNextLineToProcess;
+			linesCount = processingStatus.ReevCsvLinesCount;
+			percentComplete = processedLine * 100 / linesCount;
+			$("#fix-csv-process-progress-bar").width(percentComplete + '%');
+			$("#fix-csv-process-progress-bar").html('<div id="progress-status" >' + processedLine + '/' + linesCount +'</div>')
+		}
 	}
 }
 
@@ -170,10 +219,37 @@ include('stepbar.php');
 	</div>
 </div>
 
+<div class="clear section" id="fix-csv" style="display:none" >
+	<div class="label">2.1) Fix wrong addresses</div>
+	<tt>There are addresses where geocoding failed. You can find them in file below.
+Download the file, fix addresses, and upload it here below to geocode them again. </tt>
+	<div id="fix-csv-info"> Failed: x/y. <a href="link">Records to fix</a> </div>
+
+	<form id="fix-csv-uploadForm" action="processing.php" method="post">
+		<input type="hidden" name="action" value="INITFIXCSV" />
+		<input type="hidden" name="id" value="not filled" id="fix-csv-process-id" />
+
+		<!-- On limite le fichier à 1000Ko -->
+		<input type="hidden" name="MAX_FILE_SIZE" value="1000000" />
+		
+		<div class="section">
+			<input name="upfile" id="fix-csv-upfile" type="file" class="InputBox" />
+			<input type="submit" id="btnSubmit" value="Submit" class="btnSubmit" />
+		</div>
+	</form>
+
+	<div class="progress-div section">
+	  <div id="fix-csv-upload-progress-bar"></div>
+	</div>
+	<div class="progress-div section">
+	  <div id="fix-csv-process-progress-bar"></div>
+	</div>
+</div>
+
 <div class="clear section">
 	<div class="label">3) Get the map</div>
 	<tt>file will be converted to GeoJson</tt>
-	<button id="button-process" type="button" onclick="CsvToGeoJson()" > Finalize CSV to GeoJSON </button>
+	<button id="button-CsvToGeoJson" type="button" onclick="CsvToGeoJson()" > Finalize CSV to GeoJSON </button>
 </div>
 
 </body>
